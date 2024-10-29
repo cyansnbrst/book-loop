@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bookloop.net/internal/data/sl"
 	"bookloop.net/internal/validator"
 	"github.com/julienschmidt/httprouter"
 )
@@ -128,4 +129,20 @@ func (app *application) readInt(qs url.Values, key string, defaultValue int, v *
 	}
 
 	return t
+}
+
+func (app *application) background(fn func()) {
+	app.wg.Add(1)
+
+	go func() {
+		defer app.wg.Done()
+
+		defer func() {
+			if err := recover(); err != nil {
+				app.logger.Error("an error occured", sl.Err(fmt.Errorf("%s", err)))
+			}
+		}()
+
+		fn()
+	}()
 }
