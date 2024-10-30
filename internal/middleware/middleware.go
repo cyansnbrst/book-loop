@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"bookloop.net/internal/data"
+	"bookloop.net/internal/server"
 	"bookloop.net/internal/validator"
 	"golang.org/x/time/rate"
 )
 
-func (app *application) recoverPanic(next http.Handler) http.Handler {
+func (app *server.Server) recoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {

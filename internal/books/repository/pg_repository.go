@@ -1,4 +1,4 @@
-package data
+package repository
 
 import (
 	"context"
@@ -7,35 +7,22 @@ import (
 	"fmt"
 	"time"
 
-	"bookloop.net/internal/validator"
+	"bookloop.net/internal/books"
+	"bookloop.net/internal/models"
+	"bookloop.net/pkg/db"
+	"bookloop.net/pkg/utils"
 	"github.com/lib/pq"
 )
 
-type Book struct {
-	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"-"`
-	Title     string    `json:"title"`
-	Author    string    `json:"author"`
-	Genres    []string  `json:"genres,omitempty"`
-	Version   int32     `json:"version"`
+type booksRepo struct {
+	db *sql.DB
 }
 
-func ValidateBook(v *validator.Validator, book *Book) {
-	v.Check(book.Title != "", "title", "must be provided")
-
-	v.Check(book.Author != "", "author", "must be provided")
-
-	v.Check(book.Genres != nil, "genres", "must be provided")
-	v.Check(len(book.Genres) >= 1, "genres", "must contain at least 1 genre")
-	v.Check(len(book.Genres) <= 5, "genres", "must not contain more than 5 genres")
-	v.Check(validator.Unique(book.Genres), "genres", "must not contain duplicate values")
+func newBooksRepository(db *sql.DB) books.Repository {
+	return &booksRepo{db: db}
 }
 
-type BookModel struct {
-	DB *sql.DB
-}
-
-func (m BookModel) GetAll(title string, author string, genres []string, filters Filters) ([]*Book, Metadata, error) {
+func (r *booksRepo) GetAll(title string, author string, genres []string, filters utils.Filters) ([]*models.Book, utils.Pagination, error) {
 	query := fmt.Sprintf(`
 		SELECT count(*) OVER(), id, created_at, title, author, genres, version
 		FROM books
@@ -43,7 +30,7 @@ func (m BookModel) GetAll(title string, author string, genres []string, filters 
 		AND (to_tsvector('simple', author) @@ plainto_tsquery('simple', $2) OR $2 = '')
 		AND (genres @> $3 OR $3 = '{}')
 		ORDER BY %s %s
-		LIMIT $4 OFFSET $5`, filters.sortColumn(), filters.sortDirection())
+		LIMIT $4 OFFSET $5`, filters.SortColumn(), filters.SortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -52,22 +39,22 @@ func (m BookModel) GetAll(title string, author string, genres []string, filters 
 		title,
 		author,
 		pq.Array(genres),
-		filters.limit(),
-		filters.offset(),
+		filters.Limit(),
+		filters.Offset(),
 	}
 
-	rows, err := m.DB.QueryContext(ctx, query, args...)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, Metadata{}, err
+		return nil, utils.Pagination{}, err
 	}
 
 	defer rows.Close()
 
 	totalRecords := 0
-	books := []*Book{}
+	books := []*models.Book{}
 
 	for rows.Next() {
-		var book Book
+		var book models.Book
 
 		err := rows.Scan(
 			&totalRecords,
@@ -79,34 +66,34 @@ func (m BookModel) GetAll(title string, author string, genres []string, filters 
 			&book.Version,
 		)
 		if err != nil {
-			return nil, Metadata{}, err
+			return nil, utils.Pagination{}, err
 		}
 
 		books = append(books, &book)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, Metadata{}, err
+		return nil, utils.Pagination{}, err
 	}
 
-	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	metadata := utils.CalculateMetadata(totalRecords, filters.Page, filters.PageSize)
 
 	return books, metadata, nil
 }
 
-func (m BookModel) Insert(book *Book) error {
+func (r *booksRepo) Insert(book *models.Book) error {
 	query := `
 		INSERT INTO books (title, author, genres)
 		VALUES ($1, $2, $3)
 		RETURNING id, created_at, version`
 	args := []interface{}{book.Title, book.Author, pq.Array(book.Genres)}
 
-	return m.DB.QueryRow(query, args...).Scan(&book.ID, &book.CreatedAt, &book.Version)
+	return r.db.QueryRow(query, args...).Scan(&book.ID, &book.CreatedAt, &book.Version)
 }
 
-func (m BookModel) Get(id int64) (*Book, error) {
+func (r *booksRepo) Get(id int64) (*models.Book, error) {
 	if id < 1 {
-		return nil, ErrRecordNotFound
+		return nil, db.ErrRecordNotFound
 	}
 
 	query := `
@@ -114,8 +101,8 @@ func (m BookModel) Get(id int64) (*Book, error) {
 		FROM books
 		WHERE id = $1`
 
-	var book Book
-	err := m.DB.QueryRow(query, id).Scan(
+	var book models.Book
+	err := r.db.QueryRow(query, id).Scan(
 		&book.ID,
 		&book.CreatedAt,
 		&book.Title,
@@ -127,7 +114,7 @@ func (m BookModel) Get(id int64) (*Book, error) {
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrRecordNotFound
+			return nil, db.ErrRecordNotFound
 		default:
 			return nil, err
 		}
@@ -136,7 +123,7 @@ func (m BookModel) Get(id int64) (*Book, error) {
 	return &book, nil
 }
 
-func (m BookModel) Update(book *Book) error {
+func (r *booksRepo) Update(book *models.Book) error {
 	query := `
 		UPDATE books
 		SET title = $1, author = $2, genres = $3, version = version + 1
@@ -151,11 +138,11 @@ func (m BookModel) Update(book *Book) error {
 		book.Version,
 	}
 
-	err := m.DB.QueryRow(query, args...).Scan(&book.Version)
+	err := r.db.QueryRow(query, args...).Scan(&book.Version)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			return ErrEditConflict
+			return db.ErrEditConflict
 		default:
 			return err
 		}
@@ -164,16 +151,16 @@ func (m BookModel) Update(book *Book) error {
 	return nil
 }
 
-func (m BookModel) Delete(id int64) error {
+func (r *booksRepo) Delete(id int64) error {
 	if id < 1 {
-		return ErrRecordNotFound
+		return db.ErrEditConflict
 	}
 
 	query := `
 		DELETE FROM books
 		WHERE id = $1`
 
-	result, err := m.DB.Exec(query, id)
+	result, err := r.db.Exec(query, id)
 	if err != nil {
 		return err
 	}
@@ -184,7 +171,7 @@ func (m BookModel) Delete(id int64) error {
 	}
 
 	if rowsAffected == 0 {
-		return ErrRecordNotFound
+		return db.ErrRecordNotFound
 	}
 
 	return nil

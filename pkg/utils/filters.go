@@ -1,10 +1,10 @@
-package data
+package utils
 
 import (
 	"math"
 	"strings"
 
-	"bookloop.net/internal/validator"
+	"bookloop.net/pkg/validator"
 )
 
 type Filters struct {
@@ -23,7 +23,7 @@ func ValidateFilters(v *validator.Validator, f Filters) {
 	v.Check(validator.In(f.Sort, f.SortSafelist...), "sort", "invalid sort value")
 }
 
-func (f Filters) sortColumn() string {
+func (f Filters) SortColumn() string {
 	for _, safeValue := range f.SortSafelist {
 		if f.Sort == safeValue {
 			return strings.TrimPrefix(f.Sort, "-")
@@ -33,7 +33,7 @@ func (f Filters) sortColumn() string {
 	panic("unsafe sort parameter: " + f.Sort)
 }
 
-func (f Filters) sortDirection() string {
+func (f Filters) SortDirection() string {
 	if strings.HasPrefix(f.Sort, "-") {
 		return "DESC"
 	}
@@ -41,15 +41,15 @@ func (f Filters) sortDirection() string {
 	return "ASC"
 }
 
-func (f Filters) limit() int {
+func (f Filters) Limit() int {
 	return f.PageSize
 }
 
-func (f Filters) offset() int {
+func (f Filters) Offset() int {
 	return (f.Page - 1) * f.PageSize
 }
 
-type Metadata struct {
+type Pagination struct {
 	CurrentPage  int `json:"current_page,omitempty"`
 	PageSize     int `json:"page_size,omitempty"`
 	FirstPage    int `json:"first_page,omitempty"`
@@ -57,12 +57,12 @@ type Metadata struct {
 	TotalRecords int `json:"total_records,omitempty"`
 }
 
-func calculateMetadata(totalRecords, page, pageSize int) Metadata {
+func CalculateMetadata(totalRecords, page, pageSize int) Pagination {
 	if totalRecords == 0 {
-		return Metadata{}
+		return Pagination{}
 	}
 
-	return Metadata{
+	return Pagination{
 		CurrentPage:  page,
 		PageSize:     pageSize,
 		FirstPage:    1,
