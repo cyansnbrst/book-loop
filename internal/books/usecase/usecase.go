@@ -1,7 +1,6 @@
 package usecase
 
 import (
-	"fmt"
 	"log/slog"
 
 	"bookloop.net/config"
@@ -21,18 +20,37 @@ func NewBooksUseCase(cfg *config.Config, booksRepo books.Repository, logger slog
 	return &booksUC{cfg: cfg, booksRepo: booksRepo, logger: logger}
 }
 
-func (u *booksUC) ListBooks(list models.BooksList, v *validator.Validator) ([]*models.Book, utils.Pagination, error) {
-	list.Filters.SortSafelist = []string{"id", "title", "author", "created_at", "-id", "-title", "-author", "-created_at"}
-	utils.ValidateFilters(v, list.Filters)
+func (u *booksUC) List(input models.BooksList, v *validator.Validator) ([]*models.Book, utils.Pagination, error) {
+	input.Filters.SortSafelist = []string{"id", "title", "author", "created_at", "-id", "-title", "-author", "-created_at"}
+	utils.ValidateFilters(v, input.Filters)
 
 	if !v.Valid() {
-		return nil, utils.Pagination{}, fmt.Errorf("validation error: %v", v.Errors)
+		return nil, utils.Pagination{}, validator.ErrJSONIsNotValid
 	}
 
-	books, metadata, err := u.booksRepo.GetAll(list.Title, list.Author, list.Genres, list.Filters)
+	books, metadata, err := u.booksRepo.GetAll(input.Title, input.Author, input.Genres, input.Filters)
 	if err != nil {
 		return nil, utils.Pagination{}, err
 	}
 
 	return books, metadata, nil
+}
+
+func (u *booksUC) Insert(input models.CreateBook, v *validator.Validator) (*models.Book, error) {
+	book := &models.Book{
+		Title:  input.Title,
+		Author: input.Author,
+		Genres: input.Genres,
+	}
+
+	if models.ValidateBook(v, book); !v.Valid() {
+		return nil, validator.ErrJSONIsNotValid
+	}
+
+	err := u.booksRepo.Insert(book)
+	if err != nil {
+		return nil, err
+	}
+
+	return book, nil
 }

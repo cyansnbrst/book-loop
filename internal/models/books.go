@@ -23,6 +23,12 @@ type BooksList struct {
 	Filters utils.Filters
 }
 
+type CreateBook struct {
+	Title  string   `json:"title"`
+	Author string   `json:"author"`
+	Genres []string `json:"genres"`
+}
+
 func ValidateBook(v *validator.Validator, book *Book) {
 	v.Check(book.Title != "", "title", "must be provided")
 
