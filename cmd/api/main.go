@@ -31,12 +31,12 @@ func main() {
 	defer db.Close()
 	logger.Info("database connection pool established")
 
-	s := &server.Server{
-		Config: *cfg,
-		Logger: *logger,
-		DB:     db,
-		Mailer: mailer.New(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Sender),
-	}
+	s := *server.NewServer(
+		cfg,
+		*logger,
+		db,
+		mailer.New(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Sender),
+	)
 
 	err = s.Serve()
 	if err != nil {

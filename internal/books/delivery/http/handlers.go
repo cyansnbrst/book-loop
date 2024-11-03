@@ -8,7 +8,6 @@ import (
 	"bookloop.net/internal/books"
 	"bookloop.net/internal/models"
 	erp "bookloop.net/pkg/error_responses"
-	"bookloop.net/pkg/utils"
 	u "bookloop.net/pkg/utils"
 	"bookloop.net/pkg/validator"
 )
@@ -19,37 +18,34 @@ type booksHandlers struct {
 	logger  slog.Logger
 }
 
-func (h booksHandlers) listBooksHandler() http.HandlerFunc {
+func NewBooksHandlers(cfg *config.Config, booksUC books.UseCase, logger slog.Logger) books.Handlers {
+	return &booksHandlers{cfg: cfg, booksUC: booksUC, logger: logger}
+}
+
+func (h booksHandlers) List() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var input struct {
-			Title  string
-			Author string
-			Genres []string
-			utils.Filters
-		}
+		var list models.BooksList
 
 		v := validator.New()
 
 		qs := r.URL.Query()
 
-		input.Title = u.ReadString(qs, "title", "")
-		input.Author = u.ReadString(qs, "author", "")
-		input.Genres = u.ReadCSV(qs, "genres", []string{})
+		list.Title = u.ReadString(qs, "title", "")
+		list.Author = u.ReadString(qs, "author", "")
+		list.Genres = u.ReadCSV(qs, "genres", []string{})
 
-		input.Filters.Page = u.ReadInt(qs, "page", 1, v)
-		input.Filters.PageSize = u.ReadInt(qs, "page_size", 20, v)
+		list.Filters.Page = u.ReadInt(qs, "page", 1, v)
+		list.Filters.PageSize = u.ReadInt(qs, "page_size", 20, v)
 
-		input.Filters.Sort = u.ReadString(qs, "sort", "-created_at")
-		input.Filters.SortSafelist = []string{"id", "title", "author", "created_at", "-id", "-title", "-author", "-created_at"}
+		list.Filters.Sort = u.ReadString(qs, "sort", "-created_at")
 
-		if u.ValidateFilters(v, input.Filters); !v.Valid() {
-			erp.FailedValidationResponse(w, r, &h.logger, v.Errors)
-			return
-		}
-
-		books, metadata, err := models.Book.GetAll(input.Title, input.Author, input.Genres, input.Filters)
+		books, metadata, err := h.booksUC.ListBooks(list, v)
 		if err != nil {
-			erp.ServerErrorResponse(w, r, &h.logger, err)
+			if v.Errors != nil {
+				erp.FailedValidationResponse(w, r, &h.logger, v.Errors)
+			} else {
+				erp.ServerErrorResponse(w, r, &h.logger, err)
+			}
 			return
 		}
 

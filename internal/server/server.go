@@ -18,17 +18,21 @@ import (
 )
 
 type Server struct {
-	Config config.Config
-	Logger slog.Logger
-	DB     *sql.DB
-	Mailer mailer.Mailer
-	WG     sync.WaitGroup
+	config *config.Config
+	logger slog.Logger
+	db     *sql.DB
+	mailer mailer.Mailer
+	wg     sync.WaitGroup
+}
+
+func NewServer(cfg *config.Config, logger slog.Logger, db *sql.DB, mailer mailer.Mailer) *Server {
+	return &Server{config: cfg, logger: logger, db: db, mailer: mailer}
 }
 
 func (s *Server) Serve() error {
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.Config.Port),
-		Handler:      s.routes(),
+		Addr:         fmt.Sprintf(":%d", s.config.Port),
+		Handler:      s.RegisterHandlers(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -41,7 +45,7 @@ func (s *Server) Serve() error {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-quit
 
-		s.Logger.Info("shutting down server",
+		s.logger.Info("shutting down server",
 			slog.String("signal", sig.String()),
 		)
 
@@ -53,17 +57,17 @@ func (s *Server) Serve() error {
 			shutDownError <- err
 		}
 
-		s.Logger.Info("completing background tasks",
+		s.logger.Info("completing background tasks",
 			slog.String("addr", server.Addr),
 		)
 
-		s.WG.Wait()
+		s.wg.Wait()
 		shutDownError <- nil
 	}()
 
-	s.Logger.Info("starting server",
+	s.logger.Info("starting server",
 		slog.String("addr", server.Addr),
-		slog.String("env", s.Config.Env),
+		slog.String("env", s.config.Env),
 	)
 
 	err := server.ListenAndServe()
@@ -76,7 +80,7 @@ func (s *Server) Serve() error {
 		return err
 	}
 
-	s.Logger.Info("stopped server",
+	s.logger.Info("stopped server",
 		slog.String("addr", server.Addr),
 	)
 

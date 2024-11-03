@@ -18,7 +18,7 @@ type booksRepo struct {
 	db *sql.DB
 }
 
-func newBooksRepository(db *sql.DB) books.Repository {
+func NewBooksRepository(db *sql.DB) books.Repository {
 	return &booksRepo{db: db}
 }
 

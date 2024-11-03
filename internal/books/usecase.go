@@ -1,11 +1,15 @@
 package books
 
-import "net/http"
+import (
+	"bookloop.net/internal/models"
+	"bookloop.net/pkg/utils"
+	"bookloop.net/pkg/validator"
+)
 
 type UseCase interface {
-	GetBooks(w http.ResponseWriter, r *http.Request)
-	CreateBook(w http.ResponseWriter, r *http.Request)
-	RetrieveBook(w http.ResponseWriter, r *http.Request)
-	UpdateBook(w http.ResponseWriter, r *http.Request)
-	DeleteBook(w http.ResponseWriter, r *http.Request)
+	ListBooks(list models.BooksList, v *validator.Validator) ([]*models.Book, utils.Pagination, error)
+	// Insert(book *models.Book) error
+	// Get(id int64) (*models.Book, error)
+	// Update(book *models.Book) error
+	// Delete(id int64) error
 }
