@@ -13,10 +13,10 @@ import (
 type booksUC struct {
 	cfg       *config.Config
 	booksRepo books.Repository
-	logger    slog.Logger
+	logger    *slog.Logger
 }
 
-func NewBooksUseCase(cfg *config.Config, booksRepo books.Repository, logger slog.Logger) books.UseCase {
+func NewBooksUseCase(cfg *config.Config, booksRepo books.Repository, logger *slog.Logger) books.UseCase {
 	return &booksUC{cfg: cfg, booksRepo: booksRepo, logger: logger}
 }
 
@@ -53,4 +53,9 @@ func (u *booksUC) Insert(input models.CreateBook, v *validator.Validator) (*mode
 	}
 
 	return book, nil
+}
+
+func (u *booksUC) Get(id int64) (*models.Book, error) {
+	book, err := u.booksRepo.Get(id)
+	return book, err
 }

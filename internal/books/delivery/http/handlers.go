@@ -9,6 +9,7 @@ import (
 	"bookloop.net/config"
 	"bookloop.net/internal/books"
 	"bookloop.net/internal/models"
+	"bookloop.net/pkg/db"
 	erp "bookloop.net/pkg/error_responses"
 	u "bookloop.net/pkg/utils"
 	"bookloop.net/pkg/validator"
@@ -17,10 +18,10 @@ import (
 type booksHandlers struct {
 	cfg     *config.Config
 	booksUC books.UseCase
-	logger  slog.Logger
+	logger  *slog.Logger
 }
 
-func NewBooksHandlers(cfg *config.Config, booksUC books.UseCase, logger slog.Logger) books.Handlers {
+func NewBooksHandlers(cfg *config.Config, booksUC books.UseCase, logger *slog.Logger) books.Handlers {
 	return &booksHandlers{cfg: cfg, booksUC: booksUC, logger: logger}
 }
 
@@ -45,16 +46,16 @@ func (h booksHandlers) List() http.HandlerFunc {
 		if err != nil {
 			switch {
 			case errors.Is(err, validator.ErrJSONIsNotValid):
-				erp.FailedValidationResponse(w, r, &h.logger, v.Errors)
+				erp.FailedValidationResponse(w, r, h.logger, v.Errors)
 			default:
-				erp.ServerErrorResponse(w, r, &h.logger, err)
+				erp.ServerErrorResponse(w, r, h.logger, err)
 			}
 			return
 		}
 
 		err = u.WriteJSON(w, http.StatusOK, u.Envelope{"books": books, "metadata": metadata}, nil)
 		if err != nil {
-			erp.ServerErrorResponse(w, r, &h.logger, err)
+			erp.ServerErrorResponse(w, r, h.logger, err)
 		}
 	}
 }
@@ -65,7 +66,7 @@ func (h booksHandlers) Create() http.HandlerFunc {
 
 		err := u.ReadJSON(w, r, &input)
 		if err != nil {
-			erp.BadRequestResponse(w, r, &h.logger, err)
+			erp.BadRequestResponse(w, r, h.logger, err)
 			return
 		}
 
@@ -75,9 +76,9 @@ func (h booksHandlers) Create() http.HandlerFunc {
 		if err != nil {
 			switch {
 			case errors.Is(err, validator.ErrJSONIsNotValid):
-				erp.FailedValidationResponse(w, r, &h.logger, v.Errors)
+				erp.FailedValidationResponse(w, r, h.logger, v.Errors)
 			default:
-				erp.ServerErrorResponse(w, r, &h.logger, err)
+				erp.ServerErrorResponse(w, r, h.logger, err)
 			}
 			return
 		}
@@ -87,7 +88,33 @@ func (h booksHandlers) Create() http.HandlerFunc {
 
 		err = u.WriteJSON(w, http.StatusCreated, u.Envelope{"book": book}, headers)
 		if err != nil {
-			erp.ServerErrorResponse(w, r, &h.logger, err)
+			erp.ServerErrorResponse(w, r, h.logger, err)
+		}
+	}
+}
+
+func (h booksHandlers) Get() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := u.ReadIDParam(r)
+		if err != nil {
+			erp.NotFoundResponse(w, r, h.logger)
+			return
+		}
+
+		book, err := h.booksUC.Get(id)
+		if err != nil {
+			switch {
+			case errors.Is(err, db.ErrRecordNotFound):
+				erp.NotFoundResponse(w, r, h.logger)
+			default:
+				erp.ServerErrorResponse(w, r, h.logger, err)
+			}
+			return
+		}
+
+		err = u.WriteJSON(w, http.StatusOK, u.Envelope{"book": book}, nil)
+		if err != nil {
+			erp.ServerErrorResponse(w, r, h.logger, err)
 		}
 	}
 }

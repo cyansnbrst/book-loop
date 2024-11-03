@@ -33,7 +33,7 @@ func main() {
 
 	s := *server.NewServer(
 		cfg,
-		*logger,
+		logger,
 		db,
 		mailer.New(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Sender),
 	)

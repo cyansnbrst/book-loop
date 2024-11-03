@@ -19,13 +19,13 @@ import (
 
 type Server struct {
 	config *config.Config
-	logger slog.Logger
+	logger *slog.Logger
 	db     *sql.DB
 	mailer mailer.Mailer
 	wg     sync.WaitGroup
 }
 
-func NewServer(cfg *config.Config, logger slog.Logger, db *sql.DB, mailer mailer.Mailer) *Server {
+func NewServer(cfg *config.Config, logger *slog.Logger, db *sql.DB, mailer mailer.Mailer) *Server {
 	return &Server{config: cfg, logger: logger, db: db, mailer: mailer}
 }
 
