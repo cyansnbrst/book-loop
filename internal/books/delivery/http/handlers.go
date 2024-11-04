@@ -158,3 +158,29 @@ func (h booksHandlers) Update() http.HandlerFunc {
 
 	}
 }
+
+func (h booksHandlers) Delete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := u.ReadIDParam(r)
+		if err != nil {
+			erp.NotFoundResponse(w, r, h.logger)
+			return
+		}
+
+		err = h.booksUC.Delete(id)
+		if err != nil {
+			switch {
+			case errors.Is(err, db.ErrRecordNotFound):
+				erp.NotFoundResponse(w, r, h.logger)
+			default:
+				erp.ServerErrorResponse(w, r, h.logger, err)
+			}
+			return
+		}
+
+		err = u.WriteJSON(w, http.StatusOK, u.Envelope{"message": "book successfully deleted"}, nil)
+		if err != nil {
+			erp.ServerErrorResponse(w, r, h.logger, err)
+		}
+	}
+}

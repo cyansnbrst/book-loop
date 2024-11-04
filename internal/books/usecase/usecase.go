@@ -102,3 +102,8 @@ func (u *booksUC) Update(id int64, input models.InputBook) (*models.Book, error)
 
 	return book, nil
 }
+
+func (u *booksUC) Delete(id int64) error {
+	err := u.booksRepo.Delete(id)
+	return err
+}

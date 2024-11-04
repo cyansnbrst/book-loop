@@ -7,4 +7,5 @@ type Handlers interface {
 	Create() http.HandlerFunc
 	Get() http.HandlerFunc
 	Update() http.HandlerFunc
+	Delete() http.HandlerFunc
 }
