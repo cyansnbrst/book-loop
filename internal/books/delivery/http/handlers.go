@@ -44,9 +44,10 @@ func (h booksHandlers) List() http.HandlerFunc {
 
 		books, metadata, err := h.booksUC.List(input, v)
 		if err != nil {
+			var validationErr *validator.ValidationError
 			switch {
-			case errors.Is(err, validator.ErrJSONIsNotValid):
-				erp.FailedValidationResponse(w, r, h.logger, v.Errors)
+			case errors.As(err, &validationErr):
+				erp.FailedValidationResponse(w, r, h.logger, validationErr.Errors)
 			default:
 				erp.ServerErrorResponse(w, r, h.logger, err)
 			}
@@ -62,7 +63,7 @@ func (h booksHandlers) List() http.HandlerFunc {
 
 func (h booksHandlers) Create() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var input models.CreateBook
+		var input models.InputBook
 
 		err := u.ReadJSON(w, r, &input)
 		if err != nil {
@@ -70,13 +71,12 @@ func (h booksHandlers) Create() http.HandlerFunc {
 			return
 		}
 
-		v := validator.New()
-
-		book, err := h.booksUC.Insert(input, v)
+		book, err := h.booksUC.Insert(input)
 		if err != nil {
+			var validationErr *validator.ValidationError
 			switch {
-			case errors.Is(err, validator.ErrJSONIsNotValid):
-				erp.FailedValidationResponse(w, r, h.logger, v.Errors)
+			case errors.As(err, &validationErr):
+				erp.FailedValidationResponse(w, r, h.logger, validationErr.Errors)
 			default:
 				erp.ServerErrorResponse(w, r, h.logger, err)
 			}
@@ -116,5 +116,45 @@ func (h booksHandlers) Get() http.HandlerFunc {
 		if err != nil {
 			erp.ServerErrorResponse(w, r, h.logger, err)
 		}
+	}
+}
+
+func (h booksHandlers) Update() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := u.ReadIDParam(r)
+		if err != nil {
+			erp.NotFoundResponse(w, r, h.logger)
+			return
+		}
+
+		var input models.InputBook
+
+		err = u.ReadJSON(w, r, &input)
+		if err != nil {
+			erp.BadRequestResponse(w, r, h.logger, err)
+			return
+		}
+
+		book, err := h.booksUC.Update(id, input)
+		if err != nil {
+			var validationErr *validator.ValidationError
+			switch {
+			case errors.As(err, &validationErr):
+				erp.FailedValidationResponse(w, r, h.logger, validationErr.Errors)
+			case errors.Is(err, db.ErrRecordNotFound):
+				erp.NotFoundResponse(w, r, h.logger)
+			case errors.Is(err, db.ErrEditConflict):
+				erp.EditConflictResponse(w, r, h.logger)
+			default:
+				erp.ServerErrorResponse(w, r, h.logger, err)
+			}
+			return
+		}
+
+		err = u.WriteJSON(w, http.StatusOK, u.Envelope{"book": book}, nil)
+		if err != nil {
+			erp.ServerErrorResponse(w, r, h.logger, err)
+		}
+
 	}
 }

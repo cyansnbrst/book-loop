@@ -23,9 +23,9 @@ type BooksList struct {
 	Filters utils.Filters
 }
 
-type CreateBook struct {
-	Title  string   `json:"title"`
-	Author string   `json:"author"`
+type InputBook struct {
+	Title  *string  `json:"title"`
+	Author *string  `json:"author"`
 	Genres []string `json:"genres"`
 }
 

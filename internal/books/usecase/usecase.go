@@ -25,7 +25,11 @@ func (u *booksUC) List(input models.BooksList, v *validator.Validator) ([]*model
 	utils.ValidateFilters(v, input.Filters)
 
 	if !v.Valid() {
-		return nil, utils.Pagination{}, validator.ErrJSONIsNotValid
+		validationError := &validator.ValidationError{
+			Errors: v.Errors,
+			Err:    validator.ErrJSONIsNotValid,
+		}
+		return nil, utils.Pagination{}, validationError
 	}
 
 	books, metadata, err := u.booksRepo.GetAll(input.Title, input.Author, input.Genres, input.Filters)
@@ -36,15 +40,21 @@ func (u *booksUC) List(input models.BooksList, v *validator.Validator) ([]*model
 	return books, metadata, nil
 }
 
-func (u *booksUC) Insert(input models.CreateBook, v *validator.Validator) (*models.Book, error) {
+func (u *booksUC) Insert(input models.InputBook) (*models.Book, error) {
 	book := &models.Book{
-		Title:  input.Title,
-		Author: input.Author,
+		Title:  *input.Title,
+		Author: *input.Author,
 		Genres: input.Genres,
 	}
 
+	v := validator.New()
+
 	if models.ValidateBook(v, book); !v.Valid() {
-		return nil, validator.ErrJSONIsNotValid
+		validationError := &validator.ValidationError{
+			Errors: v.Errors,
+			Err:    validator.ErrJSONIsNotValid,
+		}
+		return nil, validationError
 	}
 
 	err := u.booksRepo.Insert(book)
@@ -58,4 +68,37 @@ func (u *booksUC) Insert(input models.CreateBook, v *validator.Validator) (*mode
 func (u *booksUC) Get(id int64) (*models.Book, error) {
 	book, err := u.booksRepo.Get(id)
 	return book, err
+}
+
+func (u *booksUC) Update(id int64, input models.InputBook) (*models.Book, error) {
+	book, err := u.booksRepo.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if input.Title != nil {
+		book.Title = *input.Title
+	}
+	if input.Author != nil {
+		book.Author = *input.Author
+	}
+	if input.Genres != nil {
+		book.Genres = input.Genres
+	}
+
+	v := validator.New()
+	if models.ValidateBook(v, book); !v.Valid() {
+		validationError := &validator.ValidationError{
+			Errors: v.Errors,
+			Err:    validator.ErrJSONIsNotValid,
+		}
+		return nil, validationError
+	}
+
+	err = u.booksRepo.Update(book)
+	if err != nil {
+		return nil, err
+	}
+
+	return book, nil
 }
