@@ -6,11 +6,12 @@ import (
 	booksHttp "bookloop.net/internal/books/delivery/http"
 	booksRepository "bookloop.net/internal/books/repository"
 	booksUseCase "bookloop.net/internal/books/usecase"
+	"bookloop.net/internal/middleware"
 	"bookloop.net/pkg/error_responses"
 	"github.com/julienschmidt/httprouter"
 )
 
-func (s *Server) RegisterHandlers() *httprouter.Router {
+func (s *Server) RegisterHandlers() http.Handler {
 	router := httprouter.New()
 
 	router.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +31,9 @@ func (s *Server) RegisterHandlers() *httprouter.Router {
 	// Init handlers
 	booksHandlers := booksHttp.NewBooksHandlers(s.config, booksUC, s.logger)
 
-	booksHttp.RegisterBookRoutes(router, booksHandlers)
+	mw := middleware.NewMiddlewareManager(s.config, s.logger)
 
-	return router
+	booksHttp.RegisterBookRoutes(router, booksHandlers, mw)
+
+	return mw.RecoverPanic(mw.RateLimit(router))
 }
