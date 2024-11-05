@@ -22,7 +22,7 @@ func NewBooksRepository(db *sql.DB) books.Repository {
 	return &booksRepo{db: db}
 }
 
-func (r *booksRepo) GetAll(title string, author string, genres []string, filters utils.Filters) ([]*models.Book, utils.Pagination, error) {
+func (r *booksRepo) GetAll(list models.BooksList) ([]*models.Book, utils.Pagination, error) {
 	query := fmt.Sprintf(`
 		SELECT count(*) OVER(), id, created_at, title, author, genres, version
 		FROM books
@@ -30,17 +30,17 @@ func (r *booksRepo) GetAll(title string, author string, genres []string, filters
 		AND (to_tsvector('simple', author) @@ plainto_tsquery('simple', $2) OR $2 = '')
 		AND (genres @> $3 OR $3 = '{}')
 		ORDER BY %s %s
-		LIMIT $4 OFFSET $5`, filters.SortColumn(), filters.SortDirection())
+		LIMIT $4 OFFSET $5`, list.Filters.SortColumn(), list.Filters.SortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	args := []interface{}{
-		title,
-		author,
-		pq.Array(genres),
-		filters.Limit(),
-		filters.Offset(),
+		list.Title,
+		list.Author,
+		pq.Array(list.Genres),
+		list.Filters.Limit(),
+		list.Filters.Offset(),
 	}
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -76,7 +76,7 @@ func (r *booksRepo) GetAll(title string, author string, genres []string, filters
 		return nil, utils.Pagination{}, err
 	}
 
-	metadata := utils.CalculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	metadata := utils.CalculateMetadata(totalRecords, list.Filters.Page, list.Filters.PageSize)
 
 	return books, metadata, nil
 }

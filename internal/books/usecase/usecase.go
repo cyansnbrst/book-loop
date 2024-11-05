@@ -32,7 +32,7 @@ func (u *booksUC) List(input models.BooksList, v *validator.Validator) ([]*model
 		return nil, utils.Pagination{}, validationError
 	}
 
-	books, metadata, err := u.booksRepo.GetAll(input.Title, input.Author, input.Genres, input.Filters)
+	books, metadata, err := u.booksRepo.GetAll(input)
 	if err != nil {
 		return nil, utils.Pagination{}, err
 	}
