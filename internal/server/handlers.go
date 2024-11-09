@@ -49,10 +49,10 @@ func (s *Server) RegisterHandlers() http.Handler {
 	booksHandlers := booksHttp.NewBooksHandlers(s.config, booksUC, s.logger)
 	usersHandlers := usersHttp.NewUsersHandlers(s.config, usersUC, permissionsUC, tokensUC, &s.wg, s.logger, &s.mailer)
 
-	mw := middleware.NewMiddlewareManager(s.config, s.logger)
+	mw := middleware.NewMiddlewareManager(s.config, usersUC, permissionsUC, s.logger)
 
 	booksHttp.RegisterBookRoutes(router, booksHandlers, mw)
 	usersHttp.RegisterUserRoutes(router, usersHandlers, mw)
 
-	return mw.RecoverPanic(mw.RateLimit(router))
+	return mw.RecoverPanic(mw.RateLimit(mw.Authenticate(router)))
 }

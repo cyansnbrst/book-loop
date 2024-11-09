@@ -7,4 +7,5 @@ type UseCase interface {
 	Activate(tokenPlaintext string) (*models.User, error)
 	Login(input models.InputLoginUser) (*models.User, error)
 	NewActivationToken(input models.InputNewActivationTokenUser) (*models.User, error)
+	Authenticate(token string) (*models.User, error)
 }

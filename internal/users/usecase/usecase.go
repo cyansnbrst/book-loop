@@ -160,3 +160,7 @@ func (u *usersUC) NewActivationToken(input models.InputNewActivationTokenUser) (
 
 	return user, err
 }
+
+func (u *usersUC) Authenticate(token string) (*models.User, error) {
+	return u.usersRepo.GetForToken(models.ScopeAuthentication, token)
+}
