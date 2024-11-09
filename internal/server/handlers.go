@@ -3,12 +3,23 @@ package server
 import (
 	"net/http"
 
+	"github.com/julienschmidt/httprouter"
+
 	booksHttp "bookloop.net/internal/books/delivery/http"
-	booksRepository "bookloop.net/internal/books/repository"
+	usersHttp "bookloop.net/internal/users/delivery/http"
+
 	booksUseCase "bookloop.net/internal/books/usecase"
+	permissionsUseCase "bookloop.net/internal/permissions/usecase"
+	tokensUseCase "bookloop.net/internal/tokens/usecase"
+	usersUseCase "bookloop.net/internal/users/usecase"
+
+	booksRepository "bookloop.net/internal/books/repository"
+	permissionsRepository "bookloop.net/internal/permissions/repository"
+	tokensRepository "bookloop.net/internal/tokens/repository"
+	usersRepository "bookloop.net/internal/users/repository"
+
 	"bookloop.net/internal/middleware"
 	"bookloop.net/pkg/error_responses"
-	"github.com/julienschmidt/httprouter"
 )
 
 func (s *Server) RegisterHandlers() http.Handler {
@@ -24,16 +35,24 @@ func (s *Server) RegisterHandlers() http.Handler {
 
 	// Init repositories
 	booksRepo := booksRepository.NewBooksRepository(s.db)
+	usersRepo := usersRepository.NewUsersRepository(s.db)
+	permissionsRepo := permissionsRepository.NewPermissionsRepository(s.db)
+	tokensRepo := tokensRepository.NewTokensRepository(s.db)
 
 	// Init useCases
 	booksUC := booksUseCase.NewBooksUseCase(s.config, booksRepo, s.logger)
+	usersUC := usersUseCase.NewUsersUseCase(s.config, usersRepo, s.logger)
+	permissionsUC := permissionsUseCase.NewPermissionsUseCase(s.config, permissionsRepo, s.logger)
+	tokensUC := tokensUseCase.NewTokensUseCase(s.config, tokensRepo, s.logger)
 
 	// Init handlers
 	booksHandlers := booksHttp.NewBooksHandlers(s.config, booksUC, s.logger)
+	usersHandlers := usersHttp.NewUsersHandlers(s.config, usersUC, permissionsUC, tokensUC, &s.wg, s.logger, &s.mailer)
 
 	mw := middleware.NewMiddlewareManager(s.config, s.logger)
 
 	booksHttp.RegisterBookRoutes(router, booksHandlers, mw)
+	usersHttp.RegisterUserRoutes(router, usersHandlers, mw)
 
 	return mw.RecoverPanic(mw.RateLimit(router))
 }

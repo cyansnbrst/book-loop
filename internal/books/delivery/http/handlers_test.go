@@ -1,10 +1,12 @@
 package http
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"bookloop.net/config"
@@ -23,7 +25,7 @@ func TestBooksHandlers_List(t *testing.T) {
 
 	uc := ucMock.NewMockUseCase(ctl)
 
-	cfg := config.LoadConfig()
+	cfg := &config.Config{}
 	sl := slog.New(
 		slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
@@ -95,6 +97,93 @@ func TestBooksHandlers_List(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			handler := h.List()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tc.expectedStatus, rr.Code)
+			assert.JSONEq(t, tc.expectedBody, rr.Body.String())
+		})
+	}
+}
+
+func TestBooksHandlers_Create(t *testing.T) {
+	ctl := gomock.NewController(t)
+	defer ctl.Finish()
+
+	uc := ucMock.NewMockUseCase(ctl)
+	cfg := &config.Config{}
+	sl := slog.New(
+		slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		}),
+	)
+
+	h := booksHandlers{
+		cfg:     cfg,
+		booksUC: uc,
+		logger:  sl,
+	}
+
+	type testCase struct {
+		name           string
+		inputBody      string
+		mockBook       *models.Book
+		mockError      error
+		expectedStatus int
+		expectedBody   string
+	}
+
+	testCases := []testCase{
+		{
+			name:           "valid request",
+			inputBody:      `{"title":"New Book","author":"Author","genres":["Comedy"]}`,
+			mockBook:       &models.Book{ID: 1, Title: "New Book", Author: "Author", Version: 1},
+			mockError:      nil,
+			expectedStatus: http.StatusCreated,
+			expectedBody:   `{"book":{"id":1,"title":"New Book","author":"Author","version":1}}`,
+		},
+		{
+			name:      "validation error: title is nil",
+			inputBody: `{"title":"","author":"Author","genres":["Comedy"]}`,
+			mockBook:  nil,
+			mockError: &validator.ValidationError{
+				Errors: map[string]string{"title": "must be provided"},
+			},
+			expectedStatus: http.StatusUnprocessableEntity,
+			expectedBody:   `{"error":{"title":"must be provided"}}`,
+		},
+		{
+			name:      "validation error: duplicate genres",
+			inputBody: `{"title":"Title","author":"Author","genres":["Comedy", "Comedy"]}`,
+			mockBook:  nil,
+			mockError: &validator.ValidationError{
+				Errors: map[string]string{"genres": "must not contain duplicate values"},
+			},
+			expectedStatus: http.StatusUnprocessableEntity,
+			expectedBody:   `{"error":{"genres":"must not contain duplicate values"}}`,
+		},
+		{
+			name:           "server error",
+			inputBody:      `{"title":"New Book","author":"Author","genres":["Comedy"]}`,
+			mockBook:       nil,
+			mockError:      errors.New("database error"),
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   `{"error":"the server encountered a problem and could not process your request"}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			uc.
+				EXPECT().
+				Insert(gomock.Any()).
+				Return(tc.mockBook, tc.mockError)
+
+			req, err := http.NewRequest(http.MethodPost, "/v1/books", strings.NewReader(tc.inputBody))
+			assert.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			rr := httptest.NewRecorder()
+			handler := h.Create()
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tc.expectedStatus, rr.Code)

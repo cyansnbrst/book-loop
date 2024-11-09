@@ -22,9 +22,8 @@ func NewBooksUseCase(cfg *config.Config, booksRepo books.Repository, logger *slo
 
 func (u *booksUC) List(input models.BooksList, v *validator.Validator) ([]*models.Book, utils.Pagination, error) {
 	input.Filters.SortSafelist = []string{"id", "title", "author", "created_at", "-id", "-title", "-author", "-created_at"}
-	utils.ValidateFilters(v, input.Filters)
 
-	if !v.Valid() {
+	if utils.ValidateFilters(v, input.Filters); !v.Valid() {
 		validationError := &validator.ValidationError{
 			Errors: v.Errors,
 			Err:    validator.ErrJSONIsNotValid,
